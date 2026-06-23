@@ -1,0 +1,123 @@
+# Reusable workflow: create a semver GitHub Release from the latest release tag.
+#
+# Default bump is patch (v1.0.5 -> v1.0.6). Callers may pass bump: minor or major.
+# If no GitHub release exists yet, the first release is v1.0.0.
+#
+# Other repos can call:
+#   uses: <owner>/github-workflow-examples/.github/workflows/semantic-release.yml@<ref>
+#   permissions:
+#     contents: write
+
+name: Semantic Release
+
+on:
+  workflow_call:
+    inputs:
+      bump:
+        description: Version bump type (patch, minor, or major). Defaults to patch.
+        required: false
+        type: string
+        default: patch
+      release_notes:
+        description: Optional release notes body. When omitted, GitHub auto-generates notes when available.
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve next version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          case "$BUMP" in
+            patch|minor|major) ;;
+            *)
+              echo "Invalid bump type: $BUMP (expected patch, minor, or major)" >&2
+              exit 1
+              ;;
+          esac
+
+          latest_tag="$(
+            gh release list --limit 1 --json tagName --jq '.[0].tagName // empty' 2>/dev/null || true
+          )"
+
+          if [ -z "$latest_tag" ]; then
+            next_tag="v1.0.0"
+            echo "No previous GitHub release found. Starting at ${next_tag}."
+          else
+            if [[ ! "$latest_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Latest release tag '${latest_tag}' is not semver (expected vMAJOR.MINOR.PATCH)." >&2
+              exit 1
+            fi
+
+            version="${latest_tag#v}"
+            IFS='.' read -r major minor patch <<< "$version"
+
+            case "$BUMP" in
+              major)
+                major=$((major + 1))
+                minor=0
+                patch=0
+                ;;
+              minor)
+                minor=$((minor + 1))
+                patch=0
+                ;;
+              patch)
+                patch=$((patch + 1))
+                ;;
+            esac
+
+            next_tag="v${major}.${minor}.${patch}"
+            echo "Latest release: ${latest_tag}. Bump: ${BUMP}. Next release: ${next_tag}."
+          fi
+
+          echo "tag=${next_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          GENERATE_NOTES: ${{ inputs.release_notes == '' && 'true' || 'false' }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          args=(
+            "$TAG"
+            --title "$TAG"
+            --target "$GITHUB_SHA"
+          )
+
+          if [ "$GENERATE_NOTES" = "true" ]; then
+            args+=(--generate-notes)
+          else
+            args+=(--notes "$RELEASE_NOTES")
+          fi
+
+          gh release create "${args[@]}"
+
+          {
+            echo "## Release created"
+            echo ""
+            echo "- **Tag:** \`${TAG}\`"
+            echo "- **Commit:** \`${GITHUB_SHA}\`"
+            echo "- **Bump:** \`${{ inputs.bump }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

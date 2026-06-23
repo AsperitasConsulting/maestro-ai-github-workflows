@@ -1,0 +1,23 @@
+# Runs when changes land on main (including merged pull requests).
+#
+# Currently invokes semantic-release with a patch bump. Additional jobs may be
+# added here later (e.g. deployments, notifications, or other reusable workflows).
+#
+# Prerequisites:
+#   - GITHUB_TOKEN with contents: write (granted to the release job below)
+
+name: Merge to Main
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  semantic-release:
+    name: Semantic release
+    uses: ./.github/workflows/semantic-release.yml
+    permissions:
+      contents: write
+    with:
+      bump: patch
