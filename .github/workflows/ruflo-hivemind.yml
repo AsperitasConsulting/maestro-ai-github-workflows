@@ -1,0 +1,228 @@
+# Reusable workflow: initialize RuFlo hive-mind (headless), run a swarm on the caller's repository,
+# then commit and push changes on the same branch (excluding root dot directories except .github/, .mcp.json, CLAUDE.md).
+#
+# Callers must pass secrets.ANTHROPIC_API_KEY and grant contents: write.
+# See ruflo-hivemind-example.yml for a local caller sample.
+
+name: RuFlo Hive Mind
+
+on:
+  workflow_call:
+    inputs:
+      instruction:
+        description: Task for the RuFlo queen-led swarm (paths refer to the caller repo)
+        required: true
+        type: string
+      ruflo_version:
+        description: Version of RuFlo to use
+        required: false
+        type: string
+        default: "3.12.4"
+      model:
+        description: Anthropic model slug for primary (Opus/Sonnet) tiers
+        required: false
+        type: string
+        default: "claude-sonnet-4-6"
+      fast_model:
+        description: Anthropic model slug for secondary (Haiku/subagent) tiers
+        required: false
+        type: string
+        default: "claude-haiku-4-5"
+    secrets:
+      ANTHROPIC_API_KEY:
+        description: Anthropic API key (caller should map secrets.ANTHROPIC_API_KEY)
+        required: true
+
+jobs:
+  hive-mind:
+    name: RuFlo hive-mind
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_MODEL: ${{ inputs.model }}
+      ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ inputs.model }}
+      ANTHROPIC_DEFAULT_SONNET_MODEL: ${{ inputs.model }}
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ inputs.fast_model }}
+      CLAUDE_CODE_SUBAGENT_MODEL: ${{ inputs.fast_model }}
+      RUFLO_INSTRUCTION: ${{ inputs.instruction }}
+      CLAUDE_FLOW_HEADLESS: "true"
+    steps:
+      - name: Validate required secrets and inputs
+        run: |
+          set -euo pipefail
+          missing=()
+
+          if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+            missing+=("ANTHROPIC_API_KEY")
+          fi
+
+          if [[ -z "${RUFLO_INSTRUCTION:-}" ]]; then
+            missing+=("instruction (workflow input)")
+          fi
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error title=Missing required configuration::The following required secrets or inputs were not provided or are empty:"
+            for item in "${missing[@]}"; do
+              echo "::error::$item"
+            done
+            exit 1
+          fi
+
+          echo "Required secrets and inputs are present."
+          echo "Primary model: ${ANTHROPIC_MODEL}"
+          echo "Fast model: ${ANTHROPIC_DEFAULT_HAIKU_MODEL}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Configure headless Claude Code
+        run: |
+          mkdir -p "$HOME/bin"
+          CLAUDE_BIN="$(command -v claude)"
+          cat > "$HOME/bin/claude" <<SCRIPT
+          #!/usr/bin/env bash
+          exec "${CLAUDE_BIN}" --permission-mode bypassPermissions "\$@"
+          SCRIPT
+          chmod +x "$HOME/bin/claude"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Initialize RuFlo
+        run: |
+          stdout_file="$(mktemp)"
+          stderr_file="$(mktemp)"
+          trap 'rm -f "$stdout_file" "$stderr_file"' EXIT
+
+          set +e
+          npx ruflo@${{ inputs.ruflo_version }} init \
+            > "$stdout_file" 2> "$stderr_file"
+          exit_code=$?
+          set -e
+
+          cat "$stdout_file"
+          cat "$stderr_file" >&2
+
+          {
+            echo "## Initialize RuFlo"
+            echo ""
+            echo "### Standard output"
+            echo '```'
+            cat "$stdout_file"
+            echo '```'
+            echo ""
+            echo "### Standard error"
+            echo '```'
+            cat "$stderr_file"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit "$exit_code"
+
+      - name: Initialize RuFlo hive-mind
+        run: |
+          stdout_file="$(mktemp)"
+          stderr_file="$(mktemp)"
+          trap 'rm -f "$stdout_file" "$stderr_file"' EXIT
+
+          set +e
+          npx ruflo@${{ inputs.ruflo_version }} hive-mind init \
+            --topology hierarchical-mesh \
+            --consensus byzantine \
+            > "$stdout_file" 2> "$stderr_file"
+          exit_code=$?
+          set -e
+
+          cat "$stdout_file"
+          cat "$stderr_file" >&2
+
+          {
+            echo "## Initialize RuFlo hive-mind"
+            echo ""
+            echo "### Standard output"
+            echo '```'
+            cat "$stdout_file"
+            echo '```'
+            echo ""
+            echo "### Standard error"
+            echo '```'
+            cat "$stderr_file"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit "$exit_code"
+
+      - name: Run RuFlo hive-mind swarm
+        run: |
+          stdout_file="$(mktemp)"
+          stderr_file="$(mktemp)"
+          trap 'rm -f "$stdout_file" "$stderr_file"' EXIT
+
+          set +e
+          npx ruflo@${{ inputs.ruflo_version }} hive-mind spawn "$RUFLO_INSTRUCTION" \
+            --queen-type strategic \
+            --verbose \
+            --claude \
+            --non-interactive \
+            > "$stdout_file" 2> "$stderr_file"
+          exit_code=$?
+          set -e
+
+          cat "$stdout_file"
+          cat "$stderr_file" >&2
+
+          {
+            echo "## Run RuFlo hive-mind swarm"
+            echo ""
+            echo "Primary model: \`${ANTHROPIC_MODEL}\`"
+            echo "Fast model: \`${ANTHROPIC_DEFAULT_HAIKU_MODEL}\`"
+            echo ""
+            echo "### Standard output"
+            echo '```'
+            cat "$stdout_file"
+            echo '```'
+            echo ""
+            echo "### Standard error"
+            echo '```'
+            cat "$stderr_file"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit "$exit_code"
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          # Exclude specific files and changes under root-level dot directories (.github/ is allowed).
+          for path in .mcp.json CLAUDE.md; do
+            git reset -q HEAD -- "$path" 2>/dev/null || true
+          done
+          while IFS= read -r -d '' path; do
+            if [[ "$path" =~ ^\.[^/]+/ ]] && [[ "$path" != .github/* ]]; then
+              git reset -q HEAD -- "$path" || true
+            fi
+          done < <(git diff --cached --name-only -z)
+
+          if git diff --cached --quiet; then
+            echo "No committable changes (clean tree or only excluded paths)."
+            exit 0
+          fi
+
+          SUMMARY="$(printf '%s' "$RUFLO_INSTRUCTION" | head -n1 | cut -c1-72)"
+          git commit -m "ruflo: ${SUMMARY}"
+          git push origin HEAD
