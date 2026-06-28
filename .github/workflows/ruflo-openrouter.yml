@@ -3,6 +3,10 @@
 # (excluding root dot directories except .github/, .mcp.json, CLAUDE.md).
 #
 # Callers must pass secrets.OPENROUTER_API_KEY and grant contents: write.
+# To let the swarm push changes to files under .github/workflows/, callers may pass
+# secrets.MAESTRO_GH_TOKEN: a PAT (repo + workflow scopes) or GitHub App installation
+# token (Contents: write + Workflows: write). When omitted, the workflow falls back to the
+# built-in GITHUB_TOKEN, which can push normal files but NOT workflow files.
 # See ruflo-openrouter-example.yml for a local caller sample.
 
 name: RuFlo Hive Mind (OpenRouter)
@@ -33,6 +37,13 @@ on:
       OPENROUTER_API_KEY:
         description: OpenRouter API key
         required: true
+      MAESTRO_GH_TOKEN:
+        description: >-
+          Optional token used to checkout and push. Provide a PAT (repo + workflow scopes)
+          or a GitHub App installation token (Contents: write + Workflows: write) so the
+          swarm can push changes to files under .github/workflows/. Falls back to the
+          built-in GITHUB_TOKEN when not provided.
+        required: false
 
 jobs:
   hive-mind:
@@ -84,6 +95,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.MAESTRO_GH_TOKEN || github.token }}
+          persist-credentials: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

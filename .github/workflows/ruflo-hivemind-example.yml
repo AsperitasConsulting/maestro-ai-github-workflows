@@ -2,12 +2,17 @@
 #
 # Prerequisites:
 #   - Repository secret ANTHROPIC_API_KEY
-#   - Branch is pushable by GITHUB_TOKEN (not blocked by protection without bypass)
+#   - Optional repository secret MAESTRO_GH_TOKEN: a PAT (repo + workflow scopes) or GitHub
+#     App installation token (Contents: write + Workflows: write). Needed to push changes to
+#     .github/workflows/ files; without it the workflow falls back to GITHUB_TOKEN, which
+#     cannot push workflow files.
+#   - Branch is pushable by the token (not blocked by protection without bypass)
 #
 # Other repos can call:
 #   uses: <owner>/github-workflow-examples/.github/workflows/ruflo-hivemind.yml@<ref>
 #   secrets:
 #     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+#     MAESTRO_GH_TOKEN: ${{ secrets.MAESTRO_GH_TOKEN }}  # optional
 #   with:
 #     instruction: "..."
 #     model: "claude-sonnet-4-20250514"
@@ -45,6 +50,7 @@ jobs:
     uses: AsperitasConsulting/maestro-ai-github-workflows/.github/workflows/ruflo-hivemind.yml@v1.0.0
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      MAESTRO_GH_TOKEN: ${{ secrets.MAESTRO_GH_TOKEN }}
     with:
       instruction: ${{ inputs.instruction }}
       model: ${{ inputs.model }}
