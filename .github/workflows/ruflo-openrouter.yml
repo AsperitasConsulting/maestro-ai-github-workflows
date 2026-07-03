@@ -1,6 +1,7 @@
 # Reusable workflow: initialize RuFlo hive-mind (headless) via OpenRouter/DeepSeek,
 # run a swarm on the caller's repository, then commit and push changes on the same branch
-# (excluding root dot directories except .github/, .mcp.json, CLAUDE.md).
+# (excluding root dot directories except .github/, .mcp.json, CLAUDE.md, and any .claude-flow
+# directory at any depth).
 #
 # Callers must pass secrets.OPENROUTER_API_KEY and grant contents: write.
 # To let the swarm push changes to files under .github/workflows/, callers may pass
@@ -226,12 +227,15 @@ jobs:
 
           git add -A
 
-          # Exclude specific files and changes under root-level dot directories (.github/ is allowed).
+          # Exclude specific files and changes under root-level dot directories (.github/ is allowed),
+          # as well as any .claude-flow directory at any depth (e.g. projects/foo/notes/.claude-flow/).
           for path in .mcp.json CLAUDE.md; do
             git reset -q HEAD -- "$path" 2>/dev/null || true
           done
           while IFS= read -r -d '' path; do
-            if [[ "$path" =~ ^\.[^/]+/ ]] && [[ "$path" != .github/* ]]; then
+            if [[ "$path" =~ (^|/)\.claude-flow(/|$) ]]; then
+              git reset -q HEAD -- "$path" || true
+            elif [[ "$path" =~ ^\.[^/]+/ ]] && [[ "$path" != .github/* ]]; then
               git reset -q HEAD -- "$path" || true
             fi
           done < <(git diff --cached --name-only -z)
