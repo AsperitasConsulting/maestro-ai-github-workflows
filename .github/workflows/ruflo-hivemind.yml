@@ -33,6 +33,14 @@ on:
         required: false
         type: string
         default: "claude-haiku-4-5"
+      environment_variable_json:
+        description: >-
+          Optional JSON object mapping environment variable names to values. These are
+          exported to $GITHUB_ENV so they are available to later steps. This works around
+          GitHub not supporting passing environment settings to reusable workflows.
+        required: false
+        type: string
+        default: "{}"
     secrets:
       ANTHROPIC_API_KEY:
         description: Anthropic API key (caller should map secrets.ANTHROPIC_API_KEY)
@@ -86,6 +94,40 @@ jobs:
           echo "Required secrets and inputs are present."
           echo "Primary model: ${ANTHROPIC_MODEL}"
           echo "Fast model: ${ANTHROPIC_DEFAULT_HAIKU_MODEL}"
+
+      - name: Export caller-provided environment variables
+        env:
+          ENVIRONMENT_VARIABLE_JSON: ${{ inputs.environment_variable_json }}
+        run: |
+          set -euo pipefail
+
+          # Work around GitHub not supporting env settings for reusable workflows by
+          # exporting the caller-provided JSON object into $GITHUB_ENV for later steps.
+          if [[ -z "${ENVIRONMENT_VARIABLE_JSON//[[:space:]]/}" ]]; then
+            echo "No environment_variable_json provided; skipping."
+            exit 0
+          fi
+
+          if ! printf '%s' "$ENVIRONMENT_VARIABLE_JSON" | jq -e 'type == "object"' >/dev/null 2>&1; then
+            echo "::error title=Invalid environment_variable_json::Input must be a JSON object mapping variable names to values."
+            exit 1
+          fi
+
+          count=0
+          while IFS= read -r name; do
+            [[ -z "$name" ]] && continue
+            value="$(printf '%s' "$ENVIRONMENT_VARIABLE_JSON" | jq -r --arg k "$name" '.[$k] | if type == "string" then . else tojson end')"
+            delimiter="EOF_$(openssl rand -hex 16)"
+            {
+              echo "${name}<<${delimiter}"
+              echo "$value"
+              echo "${delimiter}"
+            } >> "$GITHUB_ENV"
+            echo "Exported ${name}"
+            count=$((count + 1))
+          done < <(printf '%s' "$ENVIRONMENT_VARIABLE_JSON" | jq -r 'keys_unsorted[]')
+
+          echo "Exported ${count} environment variable(s) from environment_variable_json."
 
       - name: Checkout repository
         uses: actions/checkout@v4
