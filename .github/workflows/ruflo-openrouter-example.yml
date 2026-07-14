@@ -42,6 +42,7 @@ jobs:
   ruflo:
     permissions:
       contents: write
+      actions: write
     uses: AsperitasConsulting/maestro-ai-github-workflows/.github/workflows/ruflo-openrouter.yml@v1.0.0
     secrets:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

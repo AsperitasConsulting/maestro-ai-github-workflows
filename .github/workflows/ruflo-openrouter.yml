@@ -61,6 +61,7 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: write
+      actions: write
     env:
       ANTHROPIC_BASE_URL: "https://openrouter.ai/api"
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
