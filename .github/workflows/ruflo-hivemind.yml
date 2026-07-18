@@ -58,9 +58,6 @@ jobs:
     name: RuFlo hive-mind
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    permissions:
-      contents: write
-      actions: write
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       QUEEN_MODEL: ${{ inputs.model }}
