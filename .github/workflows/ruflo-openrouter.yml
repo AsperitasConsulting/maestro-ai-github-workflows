@@ -25,12 +25,12 @@ on:
         type: string
         default: "3.5.80"
       model:
-        description: OpenRouter model slug for primary (Opus/Sonnet) tiers
+        description: OpenRouter model slug for the hive-mind queen (--queen-model)
         required: false
         type: string
         default: "deepseek/deepseek-v4-pro"
       fast_model:
-        description: OpenRouter model slug for secondary (Haiku/subagent) tiers
+        description: OpenRouter model slug for the hive-mind workers (--worker-model)
         required: false
         type: string
         default: "deepseek/deepseek-v4-flash"
@@ -67,11 +67,8 @@ jobs:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       ANTHROPIC_AUTH_TOKEN: ${{ secrets.OPENROUTER_API_KEY }}
       ANTHROPIC_API_KEY: ""
-      ANTHROPIC_MODEL: ${{ inputs.model }}
-      ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ inputs.model }}
-      ANTHROPIC_DEFAULT_SONNET_MODEL: ${{ inputs.model }}
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ inputs.fast_model }}
-      CLAUDE_CODE_SUBAGENT_MODEL: ${{ inputs.fast_model }}
+      QUEEN_MODEL: ${{ inputs.model }}
+      WORKER_MODEL: ${{ inputs.fast_model }}
       CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK: "1"
       RUFLO_INSTRUCTION: ${{ inputs.instruction }}
       CLAUDE_FLOW_HEADLESS: "true"
@@ -99,7 +96,8 @@ jobs:
 
           echo "Required secrets and inputs are present."
           echo "OpenRouter base URL: ${ANTHROPIC_BASE_URL}"
-          echo "Primary model: ${ANTHROPIC_MODEL}"
+          echo "Queen model: ${QUEEN_MODEL}"
+          echo "Worker model: ${WORKER_MODEL}"
 
       - name: Export caller-provided environment variables
         env:
@@ -202,6 +200,8 @@ jobs:
           npx ruflo@${{ inputs.ruflo_version }} hive-mind init \
             --topology hierarchical-mesh \
             --consensus byzantine \
+            --queen-model "$QUEEN_MODEL" \
+            --worker-model "$WORKER_MODEL" \
             > "$stdout_file" 2> "$stderr_file"
           exit_code=$?
           set -e
@@ -248,7 +248,8 @@ jobs:
             echo "## Run RuFlo hive-mind swarm"
             echo ""
             echo "OpenRouter base URL: \`${ANTHROPIC_BASE_URL}\`"
-            echo "Primary model: \`${ANTHROPIC_MODEL}\`"
+            echo "Queen model: \`${QUEEN_MODEL}\`"
+            echo "Worker model: \`${WORKER_MODEL}\`"
             echo ""
             echo "### Standard output"
             echo '```'

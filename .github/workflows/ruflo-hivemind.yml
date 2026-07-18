@@ -24,12 +24,12 @@ on:
         type: string
         default: "3.12.4"
       model:
-        description: Anthropic model slug for primary (Opus/Sonnet) tiers
+        description: Anthropic model slug for the hive-mind queen (--queen-model)
         required: false
         type: string
         default: "claude-sonnet-4-6"
       fast_model:
-        description: Anthropic model slug for secondary (Haiku/subagent) tiers
+        description: Anthropic model slug for the hive-mind workers (--worker-model)
         required: false
         type: string
         default: "claude-haiku-4-5"
@@ -63,11 +63,8 @@ jobs:
       actions: write
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      ANTHROPIC_MODEL: ${{ inputs.model }}
-      ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ inputs.model }}
-      ANTHROPIC_DEFAULT_SONNET_MODEL: ${{ inputs.model }}
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ inputs.fast_model }}
-      CLAUDE_CODE_SUBAGENT_MODEL: ${{ inputs.fast_model }}
+      QUEEN_MODEL: ${{ inputs.model }}
+      WORKER_MODEL: ${{ inputs.fast_model }}
       RUFLO_INSTRUCTION: ${{ inputs.instruction }}
       CLAUDE_FLOW_HEADLESS: "true"
     steps:
@@ -93,8 +90,8 @@ jobs:
           fi
 
           echo "Required secrets and inputs are present."
-          echo "Primary model: ${ANTHROPIC_MODEL}"
-          echo "Fast model: ${ANTHROPIC_DEFAULT_HAIKU_MODEL}"
+          echo "Queen model: ${QUEEN_MODEL}"
+          echo "Worker model: ${WORKER_MODEL}"
 
       - name: Export caller-provided environment variables
         env:
@@ -197,6 +194,8 @@ jobs:
           npx ruflo@${{ inputs.ruflo_version }} hive-mind init \
             --topology hierarchical-mesh \
             --consensus byzantine \
+            --queen-model "$QUEEN_MODEL" \
+            --worker-model "$WORKER_MODEL" \
             > "$stdout_file" 2> "$stderr_file"
           exit_code=$?
           set -e
@@ -242,8 +241,8 @@ jobs:
           {
             echo "## Run RuFlo hive-mind swarm"
             echo ""
-            echo "Primary model: \`${ANTHROPIC_MODEL}\`"
-            echo "Fast model: \`${ANTHROPIC_DEFAULT_HAIKU_MODEL}\`"
+            echo "Queen model: \`${QUEEN_MODEL}\`"
+            echo "Worker model: \`${WORKER_MODEL}\`"
             echo ""
             echo "### Standard output"
             echo '```'
