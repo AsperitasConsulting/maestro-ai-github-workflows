@@ -41,7 +41,7 @@ on:
         description: Version of RuFlo to use
         required: false
         type: string
-        default: "3.12.4"
+        default: "3.32.7"
 
 jobs:
   ruflo:
