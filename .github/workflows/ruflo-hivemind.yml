@@ -33,6 +33,14 @@ on:
         required: false
         type: string
         default: "claude-haiku-4-5"
+      effort_level:
+        description: >-
+          Reasoning effort level for Claude Code. Allowed values: low, medium,
+          high, xhigh, max, auto. (workflow_call does not support the choice
+          input type, so this is validated at runtime.)
+        required: false
+        type: string
+        default: "auto"
       environment_variable_json:
         description: >-
           Optional JSON object mapping environment variable names to values. These are
@@ -67,6 +75,8 @@ jobs:
       CLAUDE_CODE_SUBAGENT_MODEL: ${{ inputs.fast_model }}
       RUFLO_INSTRUCTION: ${{ inputs.instruction }}
       CLAUDE_FLOW_HEADLESS: "true"
+      CLAUDE_CODE_ALWAYS_ENABLE_EFFORT: "1"
+      CLAUDE_CODE_EFFORT_LEVEL: ${{ inputs.effort_level }}
     steps:
       - name: Validate required secrets and inputs
         run: |
@@ -89,9 +99,18 @@ jobs:
             exit 1
           fi
 
+          case "${CLAUDE_CODE_EFFORT_LEVEL:-}" in
+            low|medium|high|xhigh|max|auto) ;;
+            *)
+              echo "::error title=Invalid effort_level::Value '${CLAUDE_CODE_EFFORT_LEVEL:-}' is not allowed. Choose one of: low, medium, high, xhigh, max, auto."
+              exit 1
+              ;;
+          esac
+
           echo "Required secrets and inputs are present."
           echo "Primary model: ${ANTHROPIC_MODEL}"
           echo "Fast model: ${ANTHROPIC_DEFAULT_HAIKU_MODEL}"
+          echo "Effort level: ${CLAUDE_CODE_EFFORT_LEVEL}"
 
       - name: Export caller-provided environment variables
         env:
