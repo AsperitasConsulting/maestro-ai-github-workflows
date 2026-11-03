@@ -156,10 +156,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Claude Code 2.1.198+ requires Node >= 22. On Node 20, an unpinned
+          # npm install silently resolves to 2.1.197, the last compatible release.
+          node-version: "24"
 
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+        run: |
+          npm install -g @anthropic-ai/claude-code@latest
+          claude --version
 
       - name: Configure headless Claude Code
         run: |
